@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Facemash</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #fff;
+    }
+
+    header {
+      background-color: #801111;
+      color: white;
+      padding: 20px 0;
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .subtitle {
+      margin: 20px 0 10px;
+      font-size: 18px;
+    }
+
+    .question {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    .images {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 40px;
+      margin-bottom: 30px;
+    }
+
+    .images img {
+      width: 200px;
+      height: 260px;
+      object-fit: cover;
+      border: 2px solid #ccc;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .images img:hover {
+      transform: scale(1.05);
+    }
+
+    .or {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #ranking {
+      display: none;
+      margin-top: 30px;
+    }
+
+    #ranking h2 {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>FACEMASH</header>
+  <div class="subtitle">Were we let in for our looks? No. Will we be judged on them? Yes.</div>
+  <div class="question" id="question">Who's Hotter? Click to Choose.</div>
+  <div class="images" id="voting"></div>
+  <div id="ranking">
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBG7UB_JMhI7q1CSvL2By7-myY5kwvRMn8",
+        databaseURL:"https://fase-477b0-default-rtdb.europe-west1.firebasedatabase.app/",
+        authDomain: "fase-477b0.firebaseapp.com",
+        projectId: "fase-477b0",
+        storageBucket: "fase-477b0.firebasestorage.app",
+        messagingSenderId: "580186636773",
+        appId: "1:580186636773:web:9d381dd7f1e9c4fa446f0c",
+        measurementId: "G-YNKT6P8KQT"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const girls = [
+      { name: "Girl 1", img: "images/girl1.png", votes: 0 },
+      { name: "Girl 2", img: "images/girl2.png", votes: 0 },
+      { name: "Girl 3", img: "images/girl3.png", votes: 0 },
+      { name: "Girl 4", img: "images/girl4.png", votes: 0 },
+      { name: "Girl 5", img: "images/girl5.png", votes: 0 },
+      { name: "Girl 6", img: "images/girl6.png", votes: 0 },
+      { name: "Girl 7", img: "images/girl7.png", votes: 0 },
+      { name: "Girl 8", img: "images/girl8.png", votes: 0 },
+      { name: "Girl 9", img: "images/girl9.png", votes: 0 },
+      { name: "Girl 10", img: "images/girl10.png", votes: 0 }
+    ];
+
+    let totalVotes = 0;
+    const maxVotes = 10;
+    let votingEnabled = true;
+    let currentPair = [];
+
+    // 📡 Слушаем изменения в базе и обновляем таблицу у всех устройств
+    db.ref("votes").on("value", snapshot => {
+      const data = snapshot.val() || {};
+      girls.forEach((girl, i) => {
+        const id = `girl${i + 1}`;
+        girl.votes = data[id] || 0;
+      });
+
+      // Если пользователь уже голосовал — сразу показываем рейтинг
+      if (localStorage.getItem('facemashVoted') === 'true') {
+        votingEnabled = false;
+        showRanking();
+      } else {
+        showNewPair();
+      }
+    });
+
+    function saveVoteToFirebase(index) {
+      const girlId = `girl${girls.indexOf(currentPair[index]) + 1}`;
+      db.ref("votes/" + girlId).transaction(current => (current || 0) + 1);
+    }
+
+    function vote(indexInPair) {
+      if (!votingEnabled || localStorage.getItem('facemashVoted') === 'true') return;
+
+      currentPair[indexInPair].votes++;
+      saveVoteToFirebase(indexInPair);
+      totalVotes++;
+
+      if (totalVotes >= maxVotes) {
+        votingEnabled = false;
+        localStorage.setItem('facemashVoted', 'true');
+        showRanking();
+      } else {
+        showNewPair();
+      }
+    }
+
+    function getRandomPair() {
+      let i = Math.floor(Math.random() * girls.length);
+      let j;
+      do {
+        j = Math.floor(Math.random() * girls.length);
+      } while (j === i);
+      return [girls[i], girls[j]];
+    }
+
+    function showNewPair() {
+      if (!votingEnabled) return;
+      currentPair = getRandomPair();
+      const votingDiv = document.getElementById("voting");
+      votingDiv.innerHTML = `
+        <img src="${currentPair[0].img}" alt="${currentPair[0].name}" onclick="vote(0)">
+        <div class="or">OR</div>
+        <img src="${currentPair[1].img}" alt="${currentPair[1].name}" onclick="vote(1)">
+      `;
+      document.getElementById("voting").style.display = "flex";
+      document.getElementById("ranking").style.display = "none";
+      document.getElementById("question").textContent = "Who's Hotter? Click to Choose.";
+    }
+
+    function showRanking() {
+  document.getElementById("voting").style.display = "none";
+    const resultsDiv = document.getElementById("results");
+
+  const sortedGirls = [...girls].sort((a, b) => b.votes - a.votes);
+
+  let tableHTML = `
+    <table style="margin: 0 auto; border-collapse: collapse; font-size: 18px;">
+      <thead>
+        <tr style="background-color: #eee;">
+          <th style="padding: 10px; border: 1px solid #ccc;">#</th>
+          <th style="padding: 10px; border: 1px solid #ccc;">Фото</th>
+          <th style="padding: 10px; border: 1px solid #ccc;">Голоса</th>
+          <th style="padding: 10px; border: 1px solid #ccc;">Категория</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  sortedGirls.forEach((girl, index) => {
+    let category = "";
+    let bgColor = "";
+
+    if (index < 3) {
+      category = "Gorgeous";
+      bgColor = "#ffb3b3";
+    } else if (index < 6) {
+      category = "Average";
+      bgColor = "#fff0b3";
+    } else {
+      category = "Ugly";
+      bgColor = "#d9d9d9";
+    }
+
+    tableHTML += `
+      <tr style="background-color: ${bgColor};">
+        <td style="padding: 10px; border: 1px solid #ccc;">${index + 1}</td>
+        <td style="padding: 10px; border: 1px solid #ccc;">
+          <img src="${girl.img}" style="width: 80px; height: 100px; object-fit: cover;">
+        </td>
+        <td style="padding: 10px; border: 1px solid #ccc;">${girl.votes}</td>
+        <td style="padding: 10px; border: 1px solid #ccc; font-weight: bold;">${category}</td>
+      </tr>
+    `;
+  });
+
+  tableHTML += `</tbody></table>`;
+  resultsDiv.innerHTML = tableHTML;
+  document.getElementById("ranking").style.display = "block";
+}
+
+
+    // Предзагрузка картинок
+    girls.forEach(girl => {
+      const img = new Image();
+      img.src = girl.img;
+    });
+  </script>
+
+</body>
+</html>
